@@ -1,0 +1,38 @@
+name: Publish Helm Chart & Apply Terraform
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up Helm
+      uses: azure/setup-helm@v1
+      
+    - name: Log in to ACR
+      run: |
+        az login --service-principal -u ${{ secrets.AZURE_SERVICE_PRINCIPAL }} -p ${{ secrets.AZURE_SERVICE_PRINCIPAL_SECRET }} --tenant ${{ secrets.AZURE_TENANT_ID }}
+        az acr login --name ${{ secrets.ACR_NAME }}
+      env:
+        AZURE_CLI_DISABLE_PROMPT: 1
+
+    - name: Publish Helm Chart to ACR
+      run: |
+        helm package ./ping
+        helm push ping.tgz oci://${{ secrets.ACR_NAME }}.azurecr.io/helm
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v1
+
+    - name: Initialize Terraform
+      run: terraform init
+
+    - name: Apply Terraform Configuration
+      run: terraform apply -auto-approve
